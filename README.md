@@ -9,6 +9,7 @@ Videos to watch
 - A Survey of Techniques for Maximizing LLM Performance (video)[https://www.youtube.com/watch?v=ahnGLM-RC1Y&t=3s]
 - The New Stack and Ops for AI (video)[https://www.youtube.com/watch?v=XGJNo8TpuVA]
 - New Products - A Deep Dive (video)[https://www.youtube.com/watch?v=pq34V_V5j18]
+- Background on RAG (video)[https://www.youtube.com/watch?v=Q-uEhJMu3ak]
 
 ## Introduction
 
