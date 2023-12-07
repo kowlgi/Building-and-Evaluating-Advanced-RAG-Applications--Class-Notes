@@ -12,12 +12,12 @@ Videos to watch
 
 ## Introduction
 
-Retrieval Augmented Generation (RAG)
+What is Retrieval Augmented Generation (RAG)?
 
 - a key method to get LLMs to answer questions over a user's own data
 - helps give an LLM highly relevant context to generate an answer
 
-Important to have an evaluation system to iterate and improve the RAG system, during
+When building a LLM app, it's important to have an evaluation system to iterate and improve the system, during
 
 - initial development
 - post-deployment maintenance
