@@ -110,4 +110,39 @@ This executes a user query
 
 #### How to set up an evaluation system
 
-First, come up with evaluation questions, to test the application
+1. come up with evaluation questions, to test the application
+1. run the questions using an evaluation recorder like TruEra, to generate context relevance, groundedness and answer relevance scores
+
+E.g.
+
+#### Setting up Sentence Window Retrieval
+
+`sentence_index = build_sentence_window_index(document, llm, embed_model="local:BAAI/bge-small-en-v1.5")`
+
+`sentence_window_engine = get_sentence_window_query-engine(sentence_window_index)`
+
+`window_response = sentence_window_engine.query("how do i get started on a personal project in AI")`
+
+#### Setting up Auto-merging Retrieval
+
+In this technique, we construct a hierarchy of larger parent nodes, with smaller child nodes that reference the parent node.
+
+If a parent node has a majority of its children nodes retrieved, then the children nodes are replaced with the parent node i.e. hierarchically merged.
+
+`automerging_index = build_automerging_index(documents, llm, embed_model="local:BAAI/bge-small-v1.5)`
+
+`automerging_query_engine = getautomerging_query_engine(automerging_index)`
+
+`response = automerging_query_engine.query('how to build an AI career')`
+
+## Deep dive into RAG evaluation
+
+RAG triad:
+
+- context relevance
+- groundedness
+- answer relevance
+
+`tru.reset_database()` before evaluation, we reset the db with recordings of evaluations
+
+To build the index for retrieval, we create a single large document rather than multiple documents.
