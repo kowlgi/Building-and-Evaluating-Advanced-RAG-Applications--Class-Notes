@@ -168,14 +168,18 @@ We don't have to use an LLM to evaluate, we can use Burt models and other ways.
 
 #### Answer relevance
 
-Is the final response relevant to the query by the user?
+We're checking: is the final response relevant to the query by the user?
 
 Two evaluations for answer relevance:
 
 - answer relevance score (0-1)
-- supporting evidence for the score
+- supporting evidence for the score, such a chain-of-thought (cot) reasoning
 
-### Context relevance
+The code structure:
+
+- feedback function method
+- pointer to user query
+- pointer to app output
 
 ```python
 from trulens_eval import OpenAI as fOpenAI
@@ -186,3 +190,32 @@ provider.relevance_with_cot_reasons,
 name="Answer Relevance"
 ).on_input_output()
 ```
+
+#### Context relevance
+
+We're checking: how good is the retrieval?
+
+The evaluation system looks at each piece of retrieved context and assesses how relevant that piece of context is to the question.
+
+Similar in code structure to Answer relevance with some differences:
+
+- as input, we also provide a pointer to the intermediate results i.e. context provided
+- output aggregate and average scores across pieces of retrieved context
+
+```python
+f_qs_relevance = (
+    Feedback(provider.qs_relevance,
+             name="Context Relevance")
+    .on_input()
+    .on(context_selection)
+    .aggregate(np.mean)
+)
+```
+
+#### Groundedness
+
+We're checking: is the response supported by the context?
+
+Similar in code structure to Context relevance.
+
+### Workflow to improve and iterate LLM apps
