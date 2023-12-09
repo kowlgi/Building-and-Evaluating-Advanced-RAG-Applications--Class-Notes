@@ -40,7 +40,7 @@ To evaluate RAG-based systems, we use a triad of metrics for the three main step
 
 1. Context Relevance:
 
-- How relevant are the retrieved chunks of text to the user's question. Helps to identify and debug issues with how the system is retrieving context for the LLM
+   - How relevant are the retrieved chunks of text to the user's question. Helps to identify and debug issues with how the system is retrieving context for the LLM
 
 1. Groundedness
 1. Answer Relevance
@@ -64,5 +64,50 @@ Basic RAG pipeline components
   1. launch a user query against the index
   1. select top K most similar chunks to the user query
 - synthesis
+
   1. take the relevant chunks, combine with user query and put it into prompt window of the LLM
   1. generate the final response
+
+Some steps in creating a RAG system:
+
+- merge all documents into a single one, this is necessary for retrieval methods
+- index documents in a vector store
+- instantiate a ServiceContext object, which contains:
+  - llm we're going to use
+  - embedding model
+
+### Code walkthrough
+
+- instantiate llm and service context with embedding model from huggingface
+  `llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)`
+  `service_context = ServiceContext.from_defaults(llm=llm, embed_model="local:BAAI/bge-small-en-v1.5")`
+
+In instantiating the llm, we set a temperature parameters. towards 0 -> more stable answers. towards 1 -> more newness.
+
+`VectorStoreIndex.from_documents(documents)`
+This line of code covers 3 steps in the ingestion phase:
+
+1. chunking
+1. embedding
+1. indexing
+
+`query_engine = index.as_query_engine()`
+This allows us to send user queries that do retrieval and synthesis against this data.
+
+`response = query_engine.query("user's prompt")`
+This executes a user query
+
+### RAG triad
+
+3 metrics for three stages of the system:
+
+- Query -> context: Context relevance
+  - is the retrieved context relevant to the query?
+- Context -> Response: Groundedness
+  - is the response supported by the context?
+- Response -> Query: Answer relevance
+  - is the response relevant to the query?
+
+#### How to set up an evaluation system
+
+First, come up with evaluation questions, to test the application
