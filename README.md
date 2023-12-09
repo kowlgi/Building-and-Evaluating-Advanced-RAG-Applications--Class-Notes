@@ -79,8 +79,11 @@ Some steps in creating a RAG system:
 ### Code walkthrough
 
 - instantiate llm and service context with embedding model from huggingface
-  `llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)`
-  `service_context = ServiceContext.from_defaults(llm=llm, embed_model="local:BAAI/bge-small-en-v1.5")`
+
+```python
+  llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
+  service_context = ServiceContext.from_defaults(llm=llm, embed_model="local:BAAI/bge-small-en-v1.5")
+```
 
 In instantiating the llm, we set a temperature parameters. towards 0 -> more stable answers. towards 1 -> more newness.
 
@@ -99,29 +102,34 @@ This executes a user query
 
 ### RAG triad
 
-3 metrics for three stages of the system:
+A metric for each stage of the system:
 
-- Query -> context: Context relevance
-  - is the retrieved context relevant to the query?
-- Context -> Response: Groundedness
-  - is the response supported by the context?
-- Response -> Query: Answer relevance
-  - is the response relevant to the query?
+1. Query -> context: Context relevance
+
+   - is the retrieved context relevant to the query?
+
+1. Context -> Response: Groundedness
+
+   - is the response supported by the context?
+
+1. Response -> Query: Answer relevance
+
+   - is the response relevant to the query?
 
 #### How to set up an evaluation system
 
 1. come up with evaluation questions, to test the application
 1. run the questions using an evaluation recorder like TruEra, to generate context relevance, groundedness and answer relevance scores
 
-E.g.
-
 #### Setting up Sentence Window Retrieval
 
-`sentence_index = build_sentence_window_index(document, llm, embed_model="local:BAAI/bge-small-en-v1.5")`
+```python
+sentence_index = build_sentence_window_index(document, llm, embed_model="local:BAAI/bge-small-en-v1.5")
 
-`sentence_window_engine = get_sentence_window_query-engine(sentence_window_index)`
+sentence_window_engine = get_sentence_window_query-engine(sentence_window_index)
 
-`window_response = sentence_window_engine.query("how do i get started on a personal project in AI")`
+window_response = sentence_window_engine.query("how do i get started on a personal project in AI")
+```
 
 #### Setting up Auto-merging Retrieval
 
@@ -129,11 +137,13 @@ In this technique, we construct a hierarchy of larger parent nodes, with smaller
 
 If a parent node has a majority of its children nodes retrieved, then the children nodes are replaced with the parent node i.e. hierarchically merged.
 
-`automerging_index = build_automerging_index(documents, llm, embed_model="local:BAAI/bge-small-v1.5)`
+```python
+automerging_index = build_automerging_index(documents, llm, embed_model="local:BAAI/bge-small-v1.5")
 
-`automerging_query_engine = getautomerging_query_engine(automerging_index)`
+automerging_query_engine = getautomerging_query_engine(automerging_index)
 
-`response = automerging_query_engine.query('how to build an AI career')`
+response = automerging_query_engine.query('how to build an AI career')
+```
 
 ## Deep dive into RAG evaluation
 
@@ -146,3 +156,33 @@ RAG triad:
 `tru.reset_database()` before evaluation, we reset the db with recordings of evaluations
 
 To build the index for retrieval, we create a single large document rather than multiple documents.
+
+### Feedback functions
+
+A feedback function provides a score after reviewing an LLM app's inputs, outputs and intermediate results.
+
+`provider = fOpenAI()`
+using openAI to evaluate retrieval system
+
+We don't have to use an LLM to evaluate, we can use Burt models and other ways.
+
+#### Answer relevance
+
+Is the final response relevant to the query by the user?
+
+Two evaluations for answer relevance:
+
+- answer relevance score (0-1)
+- supporting evidence for the score
+
+### Context relevance
+
+```python
+from trulens_eval import OpenAI as fOpenAI
+from trulens_eval import Feedback
+provider = fOpenAI()
+f_qa_relevance = Feedback(
+provider.relevance_with_cot_reasons,
+name="Answer Relevance"
+).on_input_output()
+```
