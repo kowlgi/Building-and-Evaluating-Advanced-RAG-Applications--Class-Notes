@@ -243,7 +243,7 @@ If the window size is too big:
 
 #### Implementations of feedback functions
 
-[Comparison of feedback functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img1.png "Comparison of feedback functions")
+![Comparison of feedback functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img1.png "Comparison of feedback functions")
 
 Difference between Human evals and Ground Truth evals:
 
@@ -251,6 +251,6 @@ Difference between Human evals and Ground Truth evals:
 
 Different people doing human eval match about 80%. LLM eval matches human eval by about 80-85%. This suggests LLM eval is quite comparable to human eval.
 
-[Other types of evaluation functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img2.png "More types of evaluation")
+![Other types of evaluation functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img2.png "More types of evaluation")
 
 ## Deep dive into Sentence Window Retrieval
