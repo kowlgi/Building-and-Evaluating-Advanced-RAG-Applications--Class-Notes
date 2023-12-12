@@ -26,15 +26,9 @@ When building a LLM app, it's important to have an evaluation system to iterate 
 Two RAG methods help deliver significantly better context to LLMs by dynamically retrieving more coherent chunks of text, than simpler methods:
 
 1. Sentence window retrieval
+   - technique to give LLM better context by retrieving not just the relevant sentence but the window of sentences that occur before and after it in the document
 1. Auto-merging retrieval
-
-What is Sentence window retrieval?
-
-- technique to give LLM better context by retrieving not just the relevant sentence but the window of sentences that occur before and after it in the document
-
-What is auto-merging retrieval?
-
-- technique to organize document into tree-like structure. When a child node is considered relevant to a user's question, then the entire text of the parent node is provided as context for the LLM
+   - technique to organize document into tree-like structure. When a child node is considered relevant to a user's question, then the entire text of the parent node is provided as context for the LLM
 
 To evaluate RAG-based systems, we use a triad of metrics for the three main steps of a RAG's execution:
 
@@ -111,6 +105,7 @@ A metric for each stage of the system:
 1. Context -> Response: Groundedness
 
    - is the response supported by the context?
+   - it's called groundedness, because we're asking if the response is grounded in the context.
 
 1. Response -> Query: Answer relevance
 
@@ -186,8 +181,8 @@ from trulens_eval import OpenAI as fOpenAI
 from trulens_eval import Feedback
 provider = fOpenAI()
 f_qa_relevance = Feedback(
-provider.relevance_with_cot_reasons,
-name="Answer Relevance"
+    provider.relevance_with_cot_reasons,
+    name="Answer Relevance"
 ).on_input_output()
 ```
 
@@ -218,4 +213,44 @@ We're checking: is the response supported by the context?
 
 Similar in code structure to Context relevance.
 
-### Workflow to improve and iterate LLM apps
+```python
+f_qs_relevance = (
+    Feedback(provider.qs_relevance,
+             name="Context Relevance")
+    .on(context_selection)
+    .on_output()
+    .aggregate(grounded.grounded_statements_aggregator)
+)
+```
+
+### Evaluate and Iterate
+
+Often failure modes arise because context is too small. When we increase context, up to a certain point, we see improvements in context relevance.
+
+When context relevance goes up, often we see improvements in groundedness as well, because the LLM in the completion step has enough relevance to complete the summary.
+
+When the LLM does not have sufficient context, it tries to leverage its own internal knowledge from the pre-training dataset to try and fill those gaps, which results in a loss of groundedness.
+
+Try different window sizes to see what window size results in the best evaluation metrics.
+
+If the window size is too small:
+
+- there may not be enough context.
+
+If the window size is too big:
+
+- irrelevant context can creep into the final response, which results in no so great scores in context relevance and groundedness.
+
+#### Implementations of feedback functions
+
+[Comparison of feedback functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img1.png "Comparison of feedback functions")
+
+Difference between Human evals and Ground Truth evals:
+
+- people in human evals may not be as much of an expert on the topic, as someone doing ground truth eval
+
+Different people doing human eval match about 80%. LLM eval matches human eval by about 80-85%. This suggests LLM eval is quite comparable to human eval.
+
+[Other types of evaluation functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img2.png "More types of evaluation")
+
+## Deep dive into Sentence Window Retrieval
