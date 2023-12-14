@@ -323,18 +323,18 @@ The sentence window node parser is an object that does two things:
 
 The service context is a wrapper object for all the things needed for indexing:
 
-    1. the llm
-    1. the embedding model
-        - huggingface bge-small-en-v1.5 is compact, small and fast for its size
-    1. node parser
+1. the llm
+1. the embedding model
+   - huggingface bge-small-en-v1.5 is compact, small and fast for its size
+1. node parser
 
 ##### Create vector store index
 
 Creation of the vector store index comprises the following:
 
-    1. splitting document into sentences
-    1. augmenting each sentence with context
-    1. embedding into vector store
+1. splitting document into sentences
+1. augmenting each sentence with context
+1. embedding into vector store
 
 Save the index to disk, so you can load it later without rebuilding it.
 
@@ -346,14 +346,14 @@ sentence_index.storage_context.persist(persist_dir="./sentence_index")
 
 Put all of the above steps together into a single function `build_sentence_window_index`:
 
-    - inputs:
-      - documents: object
-      - llm: object
-      - embed_model: string
-      - sentence_window_size: number # The number of sentences on each side of a sentence to capture.
-      - saved_index_dir: string
-    - output:
-      - sentence_index: object
+- inputs:
+  - documents: object
+  - llm: object
+  - embed_model: string
+  - sentence_window_size: number # The number of sentences on each side of a sentence to capture.
+  - saved_index_dir: string
+- output:
+  - sentence_index: object
 
 #### 2. Set up the query engine
 
@@ -379,29 +379,29 @@ rerank = SentenceTransformerRerank(
 
 This takes a value stored in the metadata and replaces the node text with that value.
 
-    - remember, we stored a value called ['window'](#1-build-the-index) in the metadata, which is the window surrounding the sentence.
-    - we do this post-processing step after retrieving a node from the index and before sending the value to the LLM.
+- remember, we stored a value called ['window'](#1-build-the-index) in the metadata, which is the window surrounding the sentence.
+- we do this post-processing step after retrieving a node from the index and before sending the value to the LLM.
 
 ##### Define a sentence transformer re-rank model
 
 This step does the following:
 
-    - reduces the LLM token usage
-    - Takes the nodes and re-ranks them using a specialized model for the task.
-    - Generally, we retrieve a larger Top K, run the re-ranker and then keep the Top N where N < K. For example K = 6 and N = 2
-    - the bge-reranker-base is a hugging-face reranker model
+- reduces the LLM token usage
+- Takes the nodes and re-ranks them using a specialized model for the task.
+- Generally, we retrieve a larger Top K, run the re-ranker and then keep the Top N where N < K. For example K = 6 and N = 2
+- the bge-reranker-base is a hugging-face reranker model
 
 ##### Putting it together
 
 Put all of the above together into a single function `get_sentence_window_query_engine`:
 
-    - inputs:
-      - sentence_vector_index: object
-      - similarity_top_k: number
-      - rerank_top_n: number
-    - output:
-      - sentence_window_engine: object
-          - This object is created from the [sentence_index](#putting-it-together)
+- inputs:
+  - sentence_vector_index: object
+  - similarity_top_k: number
+  - rerank_top_n: number
+- output:
+  - sentence_window_engine: object
+    - This object is created from the [sentence_index](#putting-it-together)
 
 ### Evaluating sentence-window retrieval
 
@@ -425,15 +425,15 @@ An issue with the naive approach is we're getting a bunch of fragmented chunks t
 
 The problem:
 
-    - In the Top K retrieved chunks step above, the chunks could be from different sections of text, which might not coherent, thus hampering the LLM's ability to synthesize within its context window.
+- In the Top K retrieved chunks step above, the chunks could be from different sections of text, which might not coherent, thus hampering the LLM's ability to synthesize within its context window.
 
 The solution:
 
-    - What auto-merging retrieval does is merge smaller child chunks into a bigger parent chunk to ensure more coherent context.
-    - How does it do it?
-        - define a hierarchy of smaller chunks linked to parent chunks
-        - if the set of smaller chunks linking to a parent chunk exceeds some threshold, then "merge" smaller chunks into the bigger parent chunk
-        - retrieve the parent chunk instead to help ensure more coherent contxt
+- What auto-merging retrieval does is merge smaller child chunks into a bigger parent chunk to ensure more coherent context.
+- How does it do it?
+  - define a hierarchy of smaller chunks linked to parent chunks
+  - if the set of smaller chunks linking to a parent chunk exceeds some threshold, then "merge" smaller chunks into the bigger parent chunk
+  - retrieve the parent chunk instead to help ensure more coherent contxt
 
 ![How smaller chunks are merged into a parent chunk](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img4.png "How smaller chunks are merged into a parent chunk")
 
@@ -486,10 +486,10 @@ automerging_index.storage_context.persist(persist_dir="./merging_index")
 
 The `chunk_sizes` setting for the hierarchical node parser can be set to any decreasing set of sizes.
 
-    - size refers to the # of tokens.
-    - [2048, 512, 128] is three layers of nodes. [2048, 512] defines two layers
-    - fewer layers means it's easier to build index as well as easier retrieval, as more layers means more checks.
-    - if fewer layers works well, we'd obviously prefer it as we want to work with a simpler structure
+- size refers to the # of tokens.
+- [2048, 512, 128] is three layers of nodes. [2048, 512] defines two layers
+- fewer layers means it's easier to build index as well as easier retrieval, as more layers means more checks.
+- if fewer layers works well, we'd obviously prefer it as we want to work with a simpler structure
 
 Note: the vector store index only embeds the leaf node. The parent node is stored in an in-memory doc store. In the Top K retrieval step, we retrieve leaf nodes.
 
@@ -497,14 +497,14 @@ Note: the vector store index only embeds the leaf node. The parent node is store
 
 Put all of the above together into a single function `build_automerging_index`:
 
-    - inputs
-        - documents: object
-        - llm: object
-        - embed_model: string
-        - save_index_dir: string
-        - chunk_sizes: Array[number]
-    - output
-        - automerging_index: object
+- inputs
+  - documents: object
+  - llm: object
+  - embed_model: string
+  - save_index_dir: string
+  - chunk_sizes: Array[number]
+- output
+  - automerging_index: object
 
 #### 2. Create auto-merging retriever
 
@@ -540,22 +540,22 @@ For automerging retriever to work well, we set a large Top K, for e.g. 12. Remem
 
 Put all of the above together into a single function `get_automerging_query_engine`:
 
-    - inputs
-        - automerging_index: object
-        - similarity_top_k: number // 12
-        - rerank_top_n: number // 6
-    - output
-        - automerging_enging: object
+- inputs
+  - automerging_index: object
+  - similarity_top_k: number // 12
+  - rerank_top_n: number // 6
+- output
+  - automerging_enging: object
 
 ### Evaluating auto-merging retrieval
 
 Evaluation setup
 
-    - iterate with different hierachical structurs: number of levels, children and chunk sizes
-    - gain intuition about hyperparameters that work best with certain doc types (e.g. employment contracts vs invoices)
-    - auto-merging is complementary to sentence-window retrieval.
-        - if say child 1 and child 4 of parent are relevant context, auto-merging will merge into parent node
-        - in contrast, sentence-window will not do this kind of merging, as the sections are not in a contiguous section of text.
+- iterate with different hierachical structurs: number of levels, children and chunk sizes
+- gain intuition about hyperparameters that work best with certain doc types (e.g. employment contracts vs invoices)
+- auto-merging is complementary to sentence-window retrieval.
+  - if say child 1 and child 4 of parent are relevant context, auto-merging will merge into parent node
+  - in contrast, sentence-window will not do this kind of merging, as the sections are not in a contiguous section of text.
 
 ## Conclusion
 
@@ -565,20 +565,20 @@ These RAG techniques are just the tip of the iceberg.
 
 More ways to improve RAG performance:
 
-    - understand data pipeline
-    - retrieval strategy
-    - LLM prompts
+- understand data pipeline
+- retrieval strategy
+- LLM prompts
 
 Other things to look into for performance:
 
-    - Chunk sizes
-    - Retrieval techniques like hybrid search
-    - LLM-based reasoning like Chain-of-thought
+- Chunk sizes
+- Retrieval techniques like hybrid search
+- LLM-based reasoning like Chain-of-thought
 
 Other things to look into for evaluation:
 
-    - model confidence
-    - calibration
-    - explanability
-    - fairness
-    - toxicity
+- model confidence
+- calibration
+- explanability
+- fairness
+- toxicity
