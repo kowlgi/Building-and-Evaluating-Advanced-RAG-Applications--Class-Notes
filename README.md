@@ -11,6 +11,11 @@ Videos to watch
 - New Products - A Deep Dive [video](https://www.youtube.com/watch?v=pq34V_V5j18)
 - Background on RAG [video](https://www.youtube.com/watch?v=Q-uEhJMu3ak)
 
+## Instructors
+
+Jerry Liu - Llama Index
+Anupam Datta - TruEra
+
 ## Introduction
 
 What is Retrieval Augmented Generation (RAG)?
@@ -254,3 +259,326 @@ Different people doing human eval match about 80%. LLM eval matches human eval b
 ![Other types of evaluation functions](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img2.png "More types of evaluation")
 
 ## Deep dive into Sentence Window Retrieval
+
+This method does two things:
+
+- retrieve based on smaller sentences to better match relevant context
+- synthesize based on extended context window around sentence
+
+The standard RAG uses the same text trunk for both embedding and synthesis. The issue with this approach:
+
+- embedding-based retrieval works well with smaller text chunks
+- whereas the LLM needs more context and bigger chunks to synthesize a good answer
+
+Sentence-window retrieval decouples embedding from retrieval.
+
+- embeds smaller chunks or sentences and stores them in a vector database. Also, add context of sentences that occur before and after to each chunk
+- during retrieval, we retrieve sentences that are most relevant to the question with a similarity search. Then replace the sentence with the full surrounding context.
+
+TIP: When you have multiple documents, merge them into a single one, to improve text splitting accuracy when used with advanced retrieval techniques.
+
+### How to set up
+
+#### 1. Build the index
+
+```python
+# 1. instantiate a sentence window node parser
+# window_size is the number of sentences on each side of a sentence to capture.
+node_parser = SentenceWindowNodeParser.from_defaults(
+    window_size=3,
+    window_metadata_key="window",
+    original_text_metadata_key="original_text",
+)
+
+# 2. set up an llm
+from llama_index.llms import OpenAI
+
+llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
+
+# 3. create the service context
+from llama_index import ServiceContext
+sentence_context = ServiceContext.from_defaults(
+    llm=llm,
+    embed_model="local:BAAI/bge-small-en-v1.5",
+    # embed_model="local:BAAI/bge-large-en-v1.5"
+    node_parser=node_parser,
+)
+
+# 4. set up a vector store index with the source document
+from llama_index import VectorStoreIndex
+sentence_index = VectorStoreIndex.from_documents(
+    [document], service_context=sentence_context
+)
+
+```
+
+##### Instantiate a sentence window node parser
+
+The sentence window node parser is an object that does two things:
+
+- splits document into single sentences, which are considered nodes
+- augments each chunk with a surrounding context around that sentence
+
+##### Create service context
+
+The service context is a wrapper object for all the things needed for indexing:
+
+    1. the llm
+    1. the embedding model
+        - huggingface bge-small-en-v1.5 is compact, small and fast for its size
+    1. node parser
+
+##### Create vector store index
+
+Creation of the vector store index comprises the following:
+
+    1. splitting document into sentences
+    1. augmenting each sentence with context
+    1. embedding into vector store
+
+Save the index to disk, so you can load it later without rebuilding it.
+
+```python
+sentence_index.storage_context.persist(persist_dir="./sentence_index")
+```
+
+##### Putting it together
+
+Put all of the above steps together into a single function `build_sentence_window_index`:
+
+    - inputs:
+      - documents: object
+      - llm: object
+      - embed_model: string
+      - sentence_window_size: number # The number of sentences on each side of a sentence to capture.
+      - saved_index_dir: string
+    - output:
+      - sentence_index: object
+
+#### 2. Set up the query engine
+
+```python
+# 1. Define a metadata replacement post-processor.
+from llama_index.indices.postprocessor import MetadataReplacementPostProcessor
+
+postproc = MetadataReplacementPostProcessor(
+    target_metadata_key="window"
+)
+
+# 2. Add the sentence transformer re-rank model.
+from llama_index.indices.postprocessor import SentenceTransformerRerank
+
+# BAAI/bge-reranker-base
+# link: https://huggingface.co/BAAI/bge-reranker-base
+rerank = SentenceTransformerRerank(
+    top_n=2, model="BAAI/bge-reranker-base"
+)
+```
+
+##### Define a metadata replacement post-processor
+
+This takes a value stored in the metadata and replaces the node text with that value.
+
+    - remember, we stored a value called ['window'](#1-build-the-index) in the metadata, which is the window surrounding the sentence.
+    - we do this post-processing step after retrieving a node from the index and before sending the value to the LLM.
+
+##### Define a sentence transformer re-rank model
+
+This step does the following:
+
+    - reduces the LLM token usage
+    - Takes the nodes and re-ranks them using a specialized model for the task.
+    - Generally, we retrieve a larger Top K, run the re-ranker and then keep the Top N where N < K. For example K = 6 and N = 2
+    - the bge-reranker-base is a hugging-face reranker model
+
+##### Putting it together
+
+Put all of the above together into a single function `get_sentence_window_query_engine`:
+
+    - inputs:
+      - sentence_vector_index: object
+      - similarity_top_k: number
+      - rerank_top_n: number
+    - output:
+      - sentence_window_engine: object
+          - This object is created from the [sentence_index](#putting-it-together)
+
+### Evaluating sentence-window retrieval
+
+Evaluation setup:
+
+- gradually increase the sentence window size starting with 1
+- evaluate app versions with the RAG triad
+- track experiments to pick the best sentence window size
+- tradeoff between token usage/cost and context relevance
+- relationship between context relevance and groundedness
+  - increasing window size increases context relevance of course, but also increases groundedness. Because with low context, the LLM uses its pre-existing knowledge to fill in the gaps in retrieved context. Therefore, more retrieved context also increases groundedness.
+  - as we increase window size, context relevance and groundedness increase up to a point, and then they start to decrease. This is because the LLM could get overwhelmed with context that's too large, and fall back on pre-existing knowledge.
+
+As sentence window size in increased, the total tokens goes up and this could have an impact on the cost if we were to increase the number of records.
+
+## Deep dive into Auto-merging Retrieval
+
+An issue with the naive approach is we're getting a bunch of fragmented chunks to put into the LLM's context window. If the fragmentation is worse, the smaller the chunk size.
+
+![Where auto-merging helps](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img3.png "Where auto-merging helps")
+
+The problem:
+
+    - In the Top K retrieved chunks step above, the chunks could be from different sections of text, which might not coherent, thus hampering the LLM's ability to synthesize within its context window.
+
+The solution:
+
+    - What auto-merging retrieval does is merge smaller child chunks into a bigger parent chunk to ensure more coherent context.
+    - How does it do it?
+        - define a hierarchy of smaller chunks linked to parent chunks
+        - if the set of smaller chunks linking to a parent chunk exceeds some threshold, then "merge" smaller chunks into the bigger parent chunk
+        - retrieve the parent chunk instead to help ensure more coherent contxt
+
+![How smaller chunks are merged into a parent chunk](https://github.com/kowlgi/Building-and-Evaluating-Advanced-RAG-Applications--Class-Notes/blob/main/assets/img4.png "How smaller chunks are merged into a parent chunk")
+
+### How to set up
+
+#### 1. Build the index
+
+```python
+# 1. load documents
+from llama_index import Document
+
+document = Document(text="\n\n".join([doc.text for doc in documents]))
+
+# 2. instantiate the hierarchical node parser
+from llama_index.node_parser import HierarchicalNodeParser
+
+node_parser = HierarchicalNodeParser.from_defaults(
+    chunk_sizes=[2048, 512, 128]
+)
+
+# 3. instantiate LLM
+from llama_index.llms import OpenAI
+
+llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
+
+from llama_index import ServiceContext
+
+# 4. create service context
+auto_merging_context = ServiceContext.from_defaults(
+    llm=llm,
+    embed_model="local:BAAI/bge-small-en-v1.5",
+    node_parser=node_parser,
+)
+
+# 5. store parent nodes in doc store
+from llama_index import VectorStoreIndex, StorageContext
+
+storage_context = StorageContext.from_defaults()
+storage_context.docstore.add_documents(nodes)
+
+
+# 6. create automerging index by embedding leaf nodes in vector db
+automerging_index = VectorStoreIndex(
+    leaf_nodes, storage_context=storage_context, service_context=auto_merging_context
+)
+
+# 7. persist the vector index (embedded leaf nodes) and sotrage context (parent nodes) to storage
+automerging_index.storage_context.persist(persist_dir="./merging_index")
+```
+
+The `chunk_sizes` setting for the hierarchical node parser can be set to any decreasing set of sizes.
+
+    - size refers to the # of tokens.
+    - [2048, 512, 128] is three layers of nodes. [2048, 512] defines two layers
+    - fewer layers means it's easier to build index as well as easier retrieval, as more layers means more checks.
+    - if fewer layers works well, we'd obviously prefer it as we want to work with a simpler structure
+
+Note: the vector store index only embeds the leaf node. The parent node is stored in an in-memory doc store. In the Top K retrieval step, we retrieve leaf nodes.
+
+##### Putting it together
+
+Put all of the above together into a single function `build_automerging_index`:
+
+    - inputs
+        - documents: object
+        - llm: object
+        - embed_model: string
+        - save_index_dir: string
+        - chunk_sizes: Array[number]
+    - output
+        - automerging_index: object
+
+#### 2. Create auto-merging retriever
+
+```python
+# 1. create auto-merging retriever
+
+from llama_index.indices.postprocessor import SentenceTransformerRerank
+from llama_index.retrievers import AutoMergingRetriever
+from llama_index.query_engine import RetrieverQueryEngine
+
+automerging_retriever = automerging_index.as_retriever(
+    similarity_top_k=12
+)
+
+retriever = AutoMergingRetriever(
+    automerging_retriever,
+    automerging_index.storage_context,
+    verbose=True
+)
+
+# 2. set up re-ranker: to reduce token usage
+
+rerank = SentenceTransformerRerank(top_n=6, model="BAAI/bge-reranker-base")
+
+auto_merging_engine = RetrieverQueryEngine.from_args(
+    automerging_retriever, node_postprocessors=[rerank]
+)
+```
+
+For automerging retriever to work well, we set a large Top K, for e.g. 12. Remember that the embedded leaf notes are small size i.e. 128 tokens
+
+##### Putting it together
+
+Put all of the above together into a single function `get_automerging_query_engine`:
+
+    - inputs
+        - automerging_index: object
+        - similarity_top_k: number // 12
+        - rerank_top_n: number // 6
+    - output
+        - automerging_enging: object
+
+### Evaluating auto-merging retrieval
+
+Evaluation setup
+
+    - iterate with different hierachical structurs: number of levels, children and chunk sizes
+    - gain intuition about hyperparameters that work best with certain doc types (e.g. employment contracts vs invoices)
+    - auto-merging is complementary to sentence-window retrieval.
+        - if say child 1 and child 4 of parent are relevant context, auto-merging will merge into parent node
+        - in contrast, sentence-window will not do this kind of merging, as the sections are not in a contiguous section of text.
+
+## Conclusion
+
+Reducing LLM hallucination is going to be the top priority for all developers.
+
+These RAG techniques are just the tip of the iceberg.
+
+More ways to improve RAG performance:
+
+    - understand data pipeline
+    - retrieval strategy
+    - LLM prompts
+
+Other things to look into for performance:
+
+    - Chunk sizes
+    - Retrieval techniques like hybrid search
+    - LLM-based reasoning like Chain-of-thought
+
+Other things to look into for evaluation:
+
+    - model confidence
+    - calibration
+    - explanability
+    - fairness
+    - toxicity
